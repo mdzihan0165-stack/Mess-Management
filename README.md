@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 📱 Smart Mess Management System
 
 A comprehensive, user-friendly mobile application built with Flutter to simplify daily mess operations, meal tracking, expense management, and member coordination.
@@ -39,3 +40,7 @@ To run this project locally on your machine, follow these steps:
 1. **Clone the repository:**
    ```bash
    git clone [https://github.com/mdzihan0165-stack/Mess-Management.git](https://github.com/mdzihan0165-stack/Mess-Management.git)
+=======
+# Mess-Management
+"Simplify your mess management and calculations! Features real-time meal tracking, accurate bazaar expense and meal rate calculation, manager transfer, and an in-app notice and chat system. A perfect, user-friendly app for managing all your mess activities smoothly."
+>>>>>>> 394be72d2b429a1ac2e249a9edab9ed0cac4cf15
