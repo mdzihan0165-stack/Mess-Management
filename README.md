@@ -1,17 +1,41 @@
-# flutter_application_1
+# 📱 Smart Mess Management System
 
-A new Flutter project.
+A comprehensive, user-friendly mobile application built with Flutter to simplify daily mess operations, meal tracking, expense management, and member coordination.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## 🚀 Features
 
-A few resources to get you started if this is your first Flutter project:
+* **Real-time Meal Tracking:** Keep track of daily meals for every member seamlessly.
+* **Bazaar & Expense Management:** Accurately record daily market costs and calculate individual shares.
+* **Dynamic Meal Rate Calculation:** Automatically computes the daily/monthly meal rate based on total costs and total meals.
+* **Manager Transfer:** Easily assign or transfer manager roles among members.
+* **In-App Notice & Chat System:** Stay updated with important announcements and communicate with mess members in real-time.
+* **Authentication & Security:** Secure login system to protect user and financial data.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🛠️ Tech Stack
+
+* **Framework:** Flutter (Dart)
+* **Backend / Database:** Firebase (Authentication, Firestore, etc.)
+* **State Management:** Provider / setState (as applicable)
+
+---
+
+## 📥 App Installation (APK)
+
+If you want to test the app directly on your Android device without building from source:
+1. Go to the [Releases / Output Folder](build/app/outputs/flutter-apk/app-release.apk).
+2. Download the `app-release.apk` file (approx. 48.4MB).
+3. Install it on your Android smartphone and enjoy!
+
+---
+
+## ⚙️ Getting Started (For Developers)
+
+To run this project locally on your machine, follow these steps:
+
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/mdzihan0165-stack/Mess-Management.git](https://github.com/mdzihan0165-stack/Mess-Management.git)
