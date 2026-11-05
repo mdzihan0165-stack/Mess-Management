@@ -86,7 +86,7 @@ class MessPdfHelper {
                       pw.SizedBox(height: 3),
                       pw.Text(
                         'Monthly Meal & Expense Report - $month',
-                        style: pw.TextStyle(
+                        style: const pw.TextStyle(
                           fontSize: 12,
                           fontWeight: pw.FontWeight.bold,
                           color: PdfColors.grey700,
@@ -109,7 +109,7 @@ class MessPdfHelper {
                         ),
                         child: pw.Text(
                           'OFFICIAL STATEMENT',
-                          style: pw.TextStyle(
+                          style: const pw.TextStyle(
                             fontSize: 9,
                             fontWeight: pw.FontWeight.bold,
                             color: PdfColors.white,
@@ -176,8 +176,8 @@ class MessPdfHelper {
 
             // 2. MEMBER FINANCIAL SUMMARY TABLE
             pw.Text(
-              '1. MEMBER ACCOUNTS SUMMARY (সদস্যদের হিসাব বিবরণী)',
-              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: primaryColor),
+              '1. MEMBER ACCOUNTS SUMMARY',
+              style: const pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: primaryColor),
             ),
             pw.SizedBox(height: 6),
             pw.Table(
@@ -252,14 +252,14 @@ class MessPdfHelper {
             ),
             pw.SizedBox(height: 16),
 
-            // 3. DAY-BY-DAY MEAL BREAKDOWN (দিনভিত্তিক মিল বিস্তারিত)
+            // 3. DAY-BY-DAY MEAL BREAKDOWN
             pw.Text(
-              '2. DAY-BY-DAY MEAL RECORD (তারিখ অনুযায়ী মেম্বারদের মিল হিসাব)',
-              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: primaryColor),
+              '2. DAY-BY-DAY MEAL RECORD',
+              style: const pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: primaryColor),
             ),
             pw.SizedBox(height: 4),
             pw.Text(
-              'Whose meals were active on which dates day-by-day (দিনভিত্তিক মিল ট্র্যাকিং):',
+              'Whose meals were active on which dates day-by-day:',
               style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
             ),
             pw.SizedBox(height: 6),
@@ -279,10 +279,10 @@ class MessPdfHelper {
 
             pw.SizedBox(height: 16),
 
-            // 4. BAZAAR DATE & TIME RECORDS (তারিখ ও সময়সহ বাজার খরচের তালিকা)
+            // 4. BAZAAR DATE & TIME RECORDS
             pw.Text(
-              '3. BAZAAR EXPENSE LOG (তারিখ ও সময় সহ বাজার তালিকা)',
-              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: primaryColor),
+              '3. BAZAAR EXPENSE LOG',
+              style: const pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: primaryColor),
             ),
             pw.SizedBox(height: 4),
             pw.Text(

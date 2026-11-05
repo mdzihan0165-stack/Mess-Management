@@ -53,5 +53,24 @@ To run this project locally on your machine, follow these steps:
 
 4. **Build for Web:**
    ```bash
-   flutter build web
+   flutter build web --release
    ```
+
+---
+
+## 🌐 Deploy to Vercel
+
+This repository includes a production-ready `vercel.json` for automated deployment on [Vercel](https://vercel.com):
+
+1. Import this GitHub repository into Vercel.
+2. In Project Settings:
+   - **Framework Preset:** `Other`
+   - The build command, output directory (`build/web`), and URL rewrites are automatically configured by `vercel.json`.
+3. Every push to the `main` branch automatically builds and deploys your updated Flutter web app to Vercel.
+
+---
+
+## 📥 Download Android APK
+
+The compiled Android application is available for direct installation:
+- **Optimized Release APK:** Available under [GitHub Releases](https://github.com/mdzihan0165-stack/Mess-Management/releases) or built using `flutter build apk --release`.

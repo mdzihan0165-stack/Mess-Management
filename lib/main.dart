@@ -716,71 +716,277 @@ class MealEntryTabState extends State<MealEntryTab> {
                         int todayTotalMeals = l + d;
 
                         return Card(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withOpacity(0.08),
                           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.white.withOpacity(0.12), width: 1),
+                          ),
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Member Name, Email and Today's Total Badge
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      '${member['name']} ${member['is_manager'] == true ? '(Manager)' : ''}',
-                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber),
-                                    ),
-                                    Text('Email: ${member['email']}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                                  ],
-                                ),
-                                const Divider(color: Colors.white24),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Lunch: $l | Dinner: $d | Total: $todayTotalMeals', style: const TextStyle(color: Colors.white, fontSize: 14)),
-                                    if (isAdminLoggedIn)
-                                      Row(
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
-                                            onPressed: l > 0 ? () async {
-                                              todayMeal['lunch'] = l - 1;
-                                              dailyMeals[selectedDate] = todayMeal;
-                                              member['dailyMeals'] = dailyMeals;
-                                              await _updateFirestoreMembers(widget.members);
-                                            } : null,
+                                          Wrap(
+                                            crossAxisAlignment: WrapCrossAlignment.center,
+                                            spacing: 6,
+                                            runSpacing: 4,
+                                            children: [
+                                              Text(
+                                                member['name'] ?? '',
+                                                style: const TextStyle(
+                                                  fontSize: 17,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.amber,
+                                                ),
+                                              ),
+                                              if (member['is_manager'] == true)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.amber.withOpacity(0.2),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    border: Border.all(color: Colors.amber, width: 0.8),
+                                                  ),
+                                                  child: const Text(
+                                                    'Manager',
+                                                    style: TextStyle(
+                                                      color: Colors.amber,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
                                           ),
-                                          IconButton(
-                                            icon: const Icon(Icons.add_circle_outline, color: Colors.greenAccent),
-                                            onPressed: () async {
-                                              todayMeal['lunch'] = l + 1;
-                                              dailyMeals[selectedDate] = todayMeal;
-                                              member['dailyMeals'] = dailyMeals;
-                                              await _updateFirestoreMembers(widget.members);
-                                            },
-                                          ),
-                                          const VerticalDivider(),
-                                          IconButton(
-                                            icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
-                                            onPressed: d > 0 ? () async {
-                                              todayMeal['dinner'] = d - 1;
-                                              dailyMeals[selectedDate] = todayMeal;
-                                              member['dailyMeals'] = dailyMeals;
-                                              await _updateFirestoreMembers(widget.members);
-                                            } : null,
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.add_circle_outline, color: Colors.greenAccent),
-                                            onPressed: () async {
-                                              todayMeal['dinner'] = d + 1;
-                                              dailyMeals[selectedDate] = todayMeal;
-                                              member['dailyMeals'] = dailyMeals;
-                                              await _updateFirestoreMembers(widget.members);
-                                            },
+                                          if ((member['email'] ?? '').toString().isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Email: ${member['email']}',
+                                              style: const TextStyle(color: Colors.white60, fontSize: 11),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    // Total Meals Badge
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.greenAccent.withOpacity(0.6), width: 1),
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text('Total', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                                          Text(
+                                            '$todayTotalMeals',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                         ],
                                       ),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(color: Colors.white24, height: 16),
+                                // Responsive Lunch and Dinner controls
+                                Row(
+                                  children: [
+                                    // Lunch Box
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.06),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.white12),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            const Text(
+                                              'Lunch',
+                                              style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                                            ),
+                                            if (isAdminLoggedIn)
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Material(
+                                                    color: Colors.transparent,
+                                                    child: InkWell(
+                                                      onTap: l > 0
+                                                          ? () async {
+                                                              todayMeal['lunch'] = l - 1;
+                                                              dailyMeals[selectedDate] = todayMeal;
+                                                              member['dailyMeals'] = dailyMeals;
+                                                              await _updateFirestoreMembers(widget.members);
+                                                            }
+                                                          : null,
+                                                      borderRadius: BorderRadius.circular(14),
+                                                      child: Padding(
+                                                        padding: const EdgeInsets.all(3.0),
+                                                        child: Icon(
+                                                          Icons.remove_circle_outline,
+                                                          size: 22,
+                                                          color: l > 0 ? Colors.redAccent : Colors.white24,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Padding(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                                                    child: Text(
+                                                      '$l',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 15,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Material(
+                                                    color: Colors.transparent,
+                                                    child: InkWell(
+                                                      onTap: () async {
+                                                        todayMeal['lunch'] = l + 1;
+                                                        dailyMeals[selectedDate] = todayMeal;
+                                                        member['dailyMeals'] = dailyMeals;
+                                                        await _updateFirestoreMembers(widget.members);
+                                                      },
+                                                      borderRadius: BorderRadius.circular(14),
+                                                      child: const Padding(
+                                                        padding: EdgeInsets.all(3.0),
+                                                        child: Icon(
+                                                          Icons.add_circle_outline,
+                                                          size: 22,
+                                                          color: Colors.greenAccent,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            else
+                                              Text(
+                                                '$l',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    // Dinner Box
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.06),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.white12),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            const Text(
+                                              'Dinner',
+                                              style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
+                                            ),
+                                            if (isAdminLoggedIn)
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Material(
+                                                    color: Colors.transparent,
+                                                    child: InkWell(
+                                                      onTap: d > 0
+                                                          ? () async {
+                                                              todayMeal['dinner'] = d - 1;
+                                                              dailyMeals[selectedDate] = todayMeal;
+                                                              member['dailyMeals'] = dailyMeals;
+                                                              await _updateFirestoreMembers(widget.members);
+                                                            }
+                                                          : null,
+                                                      borderRadius: BorderRadius.circular(14),
+                                                      child: Padding(
+                                                        padding: const EdgeInsets.all(3.0),
+                                                        child: Icon(
+                                                          Icons.remove_circle_outline,
+                                                          size: 22,
+                                                          color: d > 0 ? Colors.redAccent : Colors.white24,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Padding(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                                                    child: Text(
+                                                      '$d',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 15,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Material(
+                                                    color: Colors.transparent,
+                                                    child: InkWell(
+                                                      onTap: () async {
+                                                        todayMeal['dinner'] = d + 1;
+                                                        dailyMeals[selectedDate] = todayMeal;
+                                                        member['dailyMeals'] = dailyMeals;
+                                                        await _updateFirestoreMembers(widget.members);
+                                                      },
+                                                      borderRadius: BorderRadius.circular(14),
+                                                      child: const Padding(
+                                                        padding: EdgeInsets.all(3.0),
+                                                        child: Icon(
+                                                          Icons.add_circle_outline,
+                                                          size: 22,
+                                                          color: Colors.greenAccent,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            else
+                                              Text(
+                                                '$d',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
@@ -1141,7 +1347,7 @@ class CalculationTabState extends State<CalculationTab> {
     allEntries.sort((a, b) =>
         '${b['date']} ${b['time']}'.compareTo('${a['date']} ${a['time']}'));
 
-    double grandTotal = allEntries.fold(0.0, (sum, e) => sum + (e['amount'] as double));
+    double grandTotal = allEntries.fold(0.0, (total, e) => total + (e['amount'] as double));
 
     showDialog(
       context: context,
@@ -1374,9 +1580,9 @@ class CalculationTabState extends State<CalculationTab> {
   @override
   Widget build(BuildContext context) {
     List activeMembers = widget.members.where((m) => m['is_removed'] != true).toList();
-    double totalMessBazaar = activeMembers.fold(0.0, (sum, item) {
+    double totalMessBazaar = activeMembers.fold(0.0, (total, item) {
       double b = double.tryParse((item['bazaar'] ?? 0.0).toString()) ?? 0.0;
-      return sum + b;
+      return total + b;
     });
 
     int totalMessMeals = 0;
@@ -1535,9 +1741,11 @@ class CalculationTabState extends State<CalculationTab> {
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
                                             color: Colors.amber),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     Row(
+                                      mainAxisSize: MainAxisSize.min,
                                       children: [
                                         if (memberEntries.isNotEmpty)
                                           IconButton(
@@ -1570,14 +1778,17 @@ class CalculationTabState extends State<CalculationTab> {
                                         'Bazaar Given: ${memberBazaar.toStringAsFixed(2)} Tk',
                                         style: const TextStyle(color: Colors.white70)),
                                     if (memberEntries.isNotEmpty)
-                                      InkWell(
-                                        onTap: () => _showBazaarHistoryDialog(originalIndex),
-                                        child: Text(
-                                          '(${memberEntries.length} entries - Latest: ${memberEntries.last['date']} ${memberEntries.last['time']})',
-                                          style: const TextStyle(
-                                            color: Colors.amber,
-                                            fontSize: 11,
-                                            decoration: TextDecoration.underline,
+                                      Flexible(
+                                        child: InkWell(
+                                          onTap: () => _showBazaarHistoryDialog(originalIndex),
+                                          child: Text(
+                                            '(${memberEntries.length} entries - View)',
+                                            style: const TextStyle(
+                                              color: Colors.amber,
+                                              fontSize: 11,
+                                              decoration: TextDecoration.underline,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                       ),
@@ -1787,8 +1998,8 @@ class ProfileTabState extends State<ProfileTab> {
     List activeMembers = widget.members.where((m) => m['is_removed'] != true).toList();
     double totalBazaar = activeMembers.fold(
         0.0,
-        (sum, m) =>
-            sum + (double.tryParse((m['bazaar'] ?? 0.0).toString()) ?? 0.0));
+        (total, m) =>
+            total + (double.tryParse((m['bazaar'] ?? 0.0).toString()) ?? 0.0));
 
     int totalMeals = 0;
     for (var m in activeMembers) {
@@ -1885,8 +2096,8 @@ class ProfileTabState extends State<ProfileTab> {
                                 .toList();
                             double totalBazaar = activeMembers.fold(
                                 0.0,
-                                (sum, m) =>
-                                    sum +
+                                (total, m) =>
+                                    total +
                                     (double.tryParse((m['bazaar'] ?? 0.0).toString()) ??
                                         0.0));
 
