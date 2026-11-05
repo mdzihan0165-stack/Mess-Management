@@ -5,6 +5,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'dart:math';
+import 'package:intl/intl.dart';
+import 'pdf_generator.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -405,6 +407,7 @@ class SignupScreenState extends State<SignupScreen> {
             'is_manager': true,
             'is_removed': false,
             'bazaar': 0.0,
+            'bazaar_entries': [],
             'dailyMeals': {},
           }
         ]
@@ -643,6 +646,7 @@ class MealEntryTabState extends State<MealEntryTab> {
                     'is_manager': false,
                     'is_removed': false,
                     'bazaar': 0.0,
+                    'bazaar_entries': [],
                     'dailyMeals': {},
                   });
                   await _updateFirestoreMembers(newMembers);
@@ -809,34 +813,557 @@ class CalculationTabState extends State<CalculationTab> {
   }
 
   void _showAddBazaarDialog(int index) {
+    final member = widget.members[index];
     final TextEditingController amountController = TextEditingController();
+    final TextEditingController noteController = TextEditingController();
+
+    DateTime selectedDate = DateTime.now();
+    TimeOfDay selectedTime = TimeOfDay.now();
+
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            String formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
+            String formattedTime = selectedTime.format(context);
+
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1a1a2e),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.shopping_cart, color: Colors.greenAccent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Add Bazaar for ${member['name']}',
+                      style: const TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: amountController,
+                      style: const TextStyle(color: Colors.white),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Amount (Tk)',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        prefixIcon: const Icon(Icons.attach_money, color: Colors.greenAccent),
+                        filled: true,
+                        fillColor: Colors.white12,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Date Picker
+                    InkWell(
+                      onTap: () async {
+                        DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2025),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setDialogState(() => selectedDate = picked);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white12,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.calendar_month, color: Colors.amber, size: 20),
+                            const SizedBox(width: 8),
+                            Text('Date: $formattedDate',
+                                style: const TextStyle(color: Colors.white, fontSize: 14)),
+                            const Spacer(),
+                            const Text('Change',
+                                style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Time Picker
+                    InkWell(
+                      onTap: () async {
+                        TimeOfDay? picked = await showTimePicker(
+                          context: context,
+                          initialTime: selectedTime,
+                        );
+                        if (picked != null) {
+                          setDialogState(() => selectedTime = picked);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white12,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.access_time, color: Colors.amber, size: 20),
+                            const SizedBox(width: 8),
+                            Text('Time: $formattedTime',
+                                style: const TextStyle(color: Colors.white, fontSize: 14)),
+                            const Spacer(),
+                            const Text('Change',
+                                style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: noteController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Items / Note (e.g. চাল, মাছ, সবজি)',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        prefixIcon: const Icon(Icons.notes, color: Colors.amber),
+                        filled: true,
+                        fillColor: Colors.white12,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Save Bazaar'),
+                  onPressed: () async {
+                    double amount = double.tryParse(amountController.text.trim()) ?? 0.0;
+                    if (amount > 0) {
+                      List updated = List.from(widget.members);
+                      double currentBazaar =
+                          double.tryParse((updated[index]['bazaar'] ?? 0.0).toString()) ?? 0.0;
+                      updated[index]['bazaar'] = currentBazaar + amount;
+
+                      List entries = List.from(updated[index]['bazaar_entries'] ?? []);
+                      entries.add({
+                        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+                        'date': formattedDate,
+                        'time': formattedTime,
+                        'amount': amount,
+                        'note': noteController.text.trim(),
+                        'added_at': DateTime.now().toIso8601String(),
+                      });
+                      updated[index]['bazaar_entries'] = entries;
+
+                      await _updateFirestoreMembers(updated);
+                      if (!dialogCtx.mounted) return;
+                      Navigator.pop(dialogCtx);
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showBazaarHistoryDialog(int index) {
+    final member = widget.members[index];
+    List entries = List.from(member['bazaar_entries'] ?? []);
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            double totalMemberBazaar = entries.fold(0.0, (prev, e) {
+              return prev + (double.tryParse((e['amount'] ?? 0).toString()) ?? 0.0);
+            });
+
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1a1a2e),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.receipt_long, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Bazaar Log: ${member['name']}',
+                      style: const TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: entries.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text(
+                          'No detailed date-wise entries recorded yet.',
+                          style: TextStyle(color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: entries.length,
+                        itemBuilder: (context, eIdx) {
+                          final entry = entries[eIdx];
+                          double amt =
+                              double.tryParse((entry['amount'] ?? 0).toString()) ?? 0.0;
+                          String note = (entry['note'] ?? '').toString();
+
+                          return Card(
+                            color: Colors.white12,
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: ListTile(
+                              leading: const CircleAvatar(
+                                backgroundColor: Colors.green,
+                                radius: 18,
+                                child:
+                                    Icon(Icons.shopping_bag, size: 18, color: Colors.white),
+                              ),
+                              title: Text(
+                                '${amt.toStringAsFixed(2)} Tk',
+                                style: const TextStyle(
+                                    color: Colors.greenAccent, fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Date: ${entry['date']} | Time: ${entry['time']}',
+                                    style:
+                                        const TextStyle(color: Colors.white70, fontSize: 12),
+                                  ),
+                                  if (note.isNotEmpty)
+                                    Text(
+                                      'Items: $note',
+                                      style: const TextStyle(
+                                          color: Colors.amberAccent, fontSize: 12),
+                                    ),
+                                ],
+                              ),
+                              trailing: isAdminLoggedIn
+                                  ? IconButton(
+                                      icon: const Icon(Icons.delete_outline,
+                                          color: Colors.redAccent, size: 20),
+                                      onPressed: () async {
+                                        List updated = List.from(widget.members);
+                                        List memberEntries =
+                                            List.from(updated[index]['bazaar_entries'] ?? []);
+                                        memberEntries.removeAt(eIdx);
+                                        updated[index]['bazaar_entries'] = memberEntries;
+
+                                        double newTotal = memberEntries.fold(0.0, (prev, e) {
+                                          return prev +
+                                              (double.tryParse((e['amount'] ?? 0).toString()) ??
+                                                  0.0);
+                                        });
+                                        updated[index]['bazaar'] = newTotal;
+
+                                        await _updateFirestoreMembers(updated);
+                                        setModalState(() {
+                                          entries = memberEntries;
+                                        });
+                                      },
+                                    )
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                if (entries.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      'Total: ${totalMemberBazaar.toStringAsFixed(2)} Tk',
+                      style: const TextStyle(
+                          color: Colors.greenAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14),
+                    ),
+                  ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('Close', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAllMessBazaarDialog(List activeMembers) {
+    List<Map<String, dynamic>> allEntries = [];
+    for (var m in activeMembers) {
+      List entries = m['bazaar_entries'] ?? [];
+      for (var e in entries) {
+        allEntries.add({
+          'member_name': m['name'] ?? 'Member',
+          'date': e['date'] ?? '-',
+          'time': e['time'] ?? '-',
+          'amount': double.tryParse((e['amount'] ?? 0).toString()) ?? 0.0,
+          'note': e['note'] ?? '',
+        });
+      }
+    }
+    // Sort newest first
+    allEntries.sort((a, b) =>
+        '${b['date']} ${b['time']}'.compareTo('${a['date']} ${a['time']}'));
+
+    double grandTotal = allEntries.fold(0.0, (sum, e) => sum + (e['amount'] as double));
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
-          title: Text('Add Bazaar Cost for ${widget.members[index]['name']}', style: const TextStyle(color: Colors.white)),
-          content: TextField(
-            controller: amountController,
-            style: const TextStyle(color: Colors.white),
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Amount (Tk)', labelStyle: TextStyle(color: Colors.white70)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.receipt, color: Colors.amber),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('All Mess Bazaar Expenses',
+                    style: TextStyle(color: Colors.white, fontSize: 18)),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Bazaar Recorded:',
+                          style: TextStyle(color: Colors.white70)),
+                      Text('${grandTotal.toStringAsFixed(2)} Tk',
+                          style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                allEntries.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text('No bazaar expenses recorded yet.',
+                            style: TextStyle(color: Colors.white70)),
+                      )
+                    : ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 380),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: allEntries.length,
+                          itemBuilder: (context, idx) {
+                            final item = allEntries[idx];
+                            return Card(
+                              color: Colors.white12,
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.green.shade800,
+                                  child: Text('${idx + 1}',
+                                      style: const TextStyle(
+                                          color: Colors.white, fontSize: 12)),
+                                ),
+                                title: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(item['member_name'],
+                                        style: const TextStyle(
+                                            color: Colors.amber,
+                                            fontWeight: FontWeight.bold)),
+                                    Text('${(item['amount'] as double).toStringAsFixed(2)} Tk',
+                                        style: const TextStyle(
+                                            color: Colors.greenAccent,
+                                            fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 2),
+                                    Text('Date: ${item['date']} | Time: ${item['time']}',
+                                        style: const TextStyle(
+                                            color: Colors.white70, fontSize: 12)),
+                                    if (item['note'].toString().isNotEmpty)
+                                      Text('Items: ${item['note']}',
+                                          style: const TextStyle(
+                                              color: Colors.white60, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+              ],
+            ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                double amount = double.tryParse(amountController.text) ?? 0.0;
-                if (amount > 0) {
-                  List updated = List.from(widget.members);
-                  double currentBazaar = double.tryParse((updated[index]['bazaar'] ?? 0.0).toString()) ?? 0.0;
-                  updated[index]['bazaar'] = currentBazaar + amount;
-                  await _updateFirestoreMembers(updated);
-                  if (!context.mounted) return;
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Add'),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Close', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _downloadLiveStatementPdf(
+    BuildContext context,
+    double totalBazaar,
+    int totalMeals,
+    double mealRate,
+    List activeMembers,
+  ) async {
+    List memberSummaries = [];
+    for (var m in activeMembers) {
+      int mMeals = 0;
+      Map daily = m['dailyMeals'] ?? {};
+      daily.forEach((k, v) {
+        if (v is Map) {
+          mMeals += (int.tryParse((v['lunch'] ?? 0).toString()) ?? 0) +
+              (int.tryParse((v['dinner'] ?? 0).toString()) ?? 0);
+        }
+      });
+      double mCost = mMeals * mealRate;
+      double mBazaar = double.tryParse((m['bazaar'] ?? 0.0).toString()) ?? 0.0;
+      double balance = mBazaar - mCost;
+
+      memberSummaries.add({
+        'name': m['name'],
+        'email': m['email'],
+        'whatsapp': m['whatsapp'],
+        'meals': mMeals,
+        'bazaar': mBazaar,
+        'cost': mCost,
+        'balance': balance,
+        'dailyMeals': Map<String, dynamic>.from(daily),
+        'bazaar_entries': List<Map<String, dynamic>>.from(m['bazaar_entries'] ?? []),
+      });
+    }
+
+    String currentMonthName = DateFormat('MMMM yyyy').format(DateTime.now());
+
+    final pdf = await MessPdfHelper.generateReport(
+      messName: globalMessName,
+      messCode: globalMessCode,
+      month: currentMonthName,
+      managerName: isAdminLoggedIn ? 'Manager' : 'Live Statement',
+      totalBazaar: totalBazaar,
+      totalMeals: totalMeals,
+      mealRate: mealRate,
+      memberSummaries: memberSummaries,
+    );
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1a1a2e),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.picture_as_pdf, color: Colors.amber),
+              SizedBox(width: 8),
+              Text('Monthly Statement PDF', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Generate and download the complete PDF statement for $currentMonthName with day-by-day meals and bazaar dates/times.',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 44),
+                ),
+                icon: const Icon(Icons.download),
+                label: const Text('Download PDF File',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: () async {
+                  await MessPdfHelper.downloadPdf(
+                    document: pdf,
+                    filename:
+                        '${globalMessName}_Statement_${DateFormat('yyyy_MM_dd').format(DateTime.now())}.pdf',
+                    context: dialogCtx,
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.greenAccent),
+                  minimumSize: const Size(double.infinity, 42),
+                ),
+                icon: const Icon(Icons.print, color: Colors.greenAccent),
+                label: const Text('Print / Preview PDF'),
+                onPressed: () async {
+                  await MessPdfHelper.printOrPreview(
+                    document: pdf,
+                    filename:
+                        '${globalMessName}_Statement_${DateFormat('yyyy_MM_dd').format(DateTime.now())}.pdf',
+                  );
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Close', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -866,7 +1393,11 @@ class CalculationTabState extends State<CalculationTab> {
     double mealRate = totalMessMeals > 0 ? (totalMessBazaar / totalMessMeals) : 0.0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calculation & Expenses'), backgroundColor: Colors.green.shade800, foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: const Text('Calculation & Expenses'),
+        backgroundColor: Colors.green.shade800,
+        foregroundColor: Colors.white,
+      ),
       body: Container(
         decoration: dynamic3DBackground(),
         child: Column(
@@ -882,25 +1413,85 @@ class CalculationTabState extends State<CalculationTab> {
               child: Column(
                 children: [
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    const Text('Total Mess Bazaar:', style: TextStyle(fontSize: 16, color: Colors.white)),
-                    Text('${totalMessBazaar.toStringAsFixed(2)} Tk', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+                    const Text('Total Mess Bazaar:',
+                        style: TextStyle(fontSize: 16, color: Colors.white)),
+                    Text('${totalMessBazaar.toStringAsFixed(2)} Tk',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.greenAccent)),
                   ]),
                   const SizedBox(height: 6),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    const Text('Total Mess Meals:', style: TextStyle(fontSize: 16, color: Colors.white)),
-                    Text('$totalMessMeals Meals', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                    const Text('Total Mess Meals:',
+                        style: TextStyle(fontSize: 16, color: Colors.white)),
+                    Text('$totalMessMeals Meals',
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white)),
                   ]),
                   const Divider(color: Colors.white24),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    const Text('Current Meal Rate:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                    Text('${mealRate.toStringAsFixed(2)} Tk', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber)),
+                    const Text('Current Meal Rate:',
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white)),
+                    Text('${mealRate.toStringAsFixed(2)} Tk',
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber)),
                   ]),
+                  const SizedBox(height: 12),
+                  // Action buttons for All Bazaar Log and PDF Download
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2E7D32),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.receipt_long, size: 16),
+                          label: const Text('All Bazaar Log',
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.bold)),
+                          onPressed: () => _showAllMessBazaarDialog(activeMembers),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.amber.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.picture_as_pdf, size: 16),
+                          label: const Text('Download PDF',
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.bold)),
+                          onPressed: () => _downloadLiveStatementPdf(
+                              context, totalMessBazaar, totalMessMeals, mealRate, activeMembers),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
             Expanded(
               child: activeMembers.isEmpty
-                  ? const Center(child: Text('No active members', style: TextStyle(color: Colors.white70)))
+                  ? const Center(
+                      child: Text('No active members',
+                          style: TextStyle(color: Colors.white70)))
                   : ListView.builder(
                       itemCount: activeMembers.length,
                       itemBuilder: (context, index) {
@@ -909,18 +1500,25 @@ class CalculationTabState extends State<CalculationTab> {
                         Map dailyMeals = member['dailyMeals'] ?? {};
                         dailyMeals.forEach((date, meals) {
                           if (meals is Map) {
-                            memberTotalMeals += (int.tryParse((meals['lunch'] ?? 0).toString()) ?? 0) +
-                                (int.tryParse((meals['dinner'] ?? 0).toString()) ?? 0);
+                            memberTotalMeals +=
+                                (int.tryParse((meals['lunch'] ?? 0).toString()) ?? 0) +
+                                    (int.tryParse((meals['dinner'] ?? 0).toString()) ?? 0);
                           }
                         });
 
                         double memberMealCost = memberTotalMeals * mealRate;
-                        double memberBazaar = double.tryParse((member['bazaar'] ?? 0.0).toString()) ?? 0.0;
+                        double memberBazaar =
+                            double.tryParse((member['bazaar'] ?? 0.0).toString()) ?? 0.0;
                         double balance = memberBazaar - memberMealCost;
+
+                        List memberEntries = List.from(member['bazaar_entries'] ?? []);
+                        int originalIndex = widget.members
+                            .indexWhere((m) => m['email'] == member['email']);
 
                         return Card(
                           color: Colors.white.withOpacity(0.1),
-                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          margin:
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           elevation: 3,
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
@@ -930,33 +1528,79 @@ class CalculationTabState extends State<CalculationTab> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(member['name'] ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
-                                    if (isAdminLoggedIn)
-                                      OutlinedButton(
-                                        style: OutlinedButton.styleFrom(foregroundColor: Colors.greenAccent),
-                                        onPressed: () {
-                                          int originalIndex = widget.members.indexWhere((m) => m['email'] == member['email']);
-                                          _showAddBazaarDialog(originalIndex);
-                                        },
-                                        child: const Text('Add Bazaar'),
+                                    Expanded(
+                                      child: Text(
+                                        '${member['name'] ?? ''} ${member['is_manager'] == true ? '(Manager)' : ''}',
+                                        style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.amber),
                                       ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        if (memberEntries.isNotEmpty)
+                                          IconButton(
+                                            tooltip: 'View Bazaar Details',
+                                            icon: const Icon(Icons.history,
+                                                color: Colors.amberAccent),
+                                            onPressed: () => _showBazaarHistoryDialog(
+                                                originalIndex),
+                                          ),
+                                        if (isAdminLoggedIn)
+                                          OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                                foregroundColor: Colors.greenAccent),
+                                            icon: const Icon(Icons.add, size: 16),
+                                            onPressed: () => _showAddBazaarDialog(
+                                                originalIndex),
+                                            label: const Text('Add Bazaar'),
+                                          ),
+                                      ],
+                                    ),
                                   ],
                                 ),
                                 const Divider(color: Colors.white24),
-                                Text('Total Meals: $memberTotalMeals', style: const TextStyle(color: Colors.white70)),
-                                Text('Bazaar Given: ${memberBazaar.toStringAsFixed(2)} Tk', style: const TextStyle(color: Colors.white70)),
-                                Text('Meal Cost: ${memberMealCost.toStringAsFixed(2)} Tk', style: const TextStyle(color: Colors.white70)),
+                                Text('Total Meals: $memberTotalMeals',
+                                    style: const TextStyle(color: Colors.white70)),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                        'Bazaar Given: ${memberBazaar.toStringAsFixed(2)} Tk',
+                                        style: const TextStyle(color: Colors.white70)),
+                                    if (memberEntries.isNotEmpty)
+                                      InkWell(
+                                        onTap: () => _showBazaarHistoryDialog(originalIndex),
+                                        child: Text(
+                                          '(${memberEntries.length} entries - Latest: ${memberEntries.last['date']} ${memberEntries.last['time']})',
+                                          style: const TextStyle(
+                                            color: Colors.amber,
+                                            fontSize: 11,
+                                            decoration: TextDecoration.underline,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                Text('Meal Cost: ${memberMealCost.toStringAsFixed(2)} Tk',
+                                    style: const TextStyle(color: Colors.white70)),
                                 const SizedBox(height: 4),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text('Balance (Due/Return):', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                    const Text('Balance (Due/Return):',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white)),
                                     Text(
                                       '${balance >= 0 ? '+' : ''}${balance.toStringAsFixed(2)} Tk',
                                       style: TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
-                                        color: balance >= 0 ? Colors.greenAccent : Colors.redAccent,
+                                        color: balance >= 0
+                                            ? Colors.greenAccent
+                                            : Colors.redAccent,
                                       ),
                                     ),
                                   ],
@@ -1139,13 +1783,82 @@ class ProfileTab extends StatefulWidget {
 }
 
 class ProfileTabState extends State<ProfileTab> {
+  Future<void> _downloadCurrentMonthReport(BuildContext context) async {
+    List activeMembers = widget.members.where((m) => m['is_removed'] != true).toList();
+    double totalBazaar = activeMembers.fold(
+        0.0,
+        (sum, m) =>
+            sum + (double.tryParse((m['bazaar'] ?? 0.0).toString()) ?? 0.0));
+
+    int totalMeals = 0;
+    for (var m in activeMembers) {
+      Map daily = m['dailyMeals'] ?? {};
+      daily.forEach((k, v) {
+        if (v is Map) {
+          totalMeals += (int.tryParse((v['lunch'] ?? 0).toString()) ?? 0) +
+              (int.tryParse((v['dinner'] ?? 0).toString()) ?? 0);
+        }
+      });
+    }
+    double mealRate = totalMeals > 0 ? totalBazaar / totalMeals : 0.0;
+
+    List memberSummaries = [];
+    for (var m in activeMembers) {
+      int mMeals = 0;
+      Map daily = m['dailyMeals'] ?? {};
+      daily.forEach((k, v) {
+        if (v is Map) {
+          mMeals += (int.tryParse((v['lunch'] ?? 0).toString()) ?? 0) +
+              (int.tryParse((v['dinner'] ?? 0).toString()) ?? 0);
+        }
+      });
+      double mCost = mMeals * mealRate;
+      double mBazaar = double.tryParse((m['bazaar'] ?? 0.0).toString()) ?? 0.0;
+      double balance = mBazaar - mCost;
+
+      memberSummaries.add({
+        'name': m['name'],
+        'email': m['email'],
+        'whatsapp': m['whatsapp'],
+        'meals': mMeals,
+        'bazaar': mBazaar,
+        'cost': mCost,
+        'balance': balance,
+        'dailyMeals': Map<String, dynamic>.from(daily),
+        'bazaar_entries': List<Map<String, dynamic>>.from(m['bazaar_entries'] ?? []),
+      });
+    }
+
+    String currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
+    final pdf = await MessPdfHelper.generateReport(
+      messName: globalMessName,
+      messCode: globalMessCode,
+      month: currentMonth,
+      managerName: isAdminLoggedIn ? 'Manager' : 'Statement',
+      totalBazaar: totalBazaar,
+      totalMeals: totalMeals,
+      mealRate: mealRate,
+      memberSummaries: memberSummaries,
+    );
+
+    if (!context.mounted) return;
+    await MessPdfHelper.downloadPdf(
+      document: pdf,
+      filename:
+          '${globalMessName}_Statement_${DateFormat('yyyy_MM_dd').format(DateTime.now())}.pdf',
+      context: context,
+    );
+  }
+
   void _showChangeManagerDialog() {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
-          title: const Text('Change Manager & Close Month', style: TextStyle(color: Colors.white)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Change Manager & Close Month',
+              style: TextStyle(color: Colors.white)),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -1155,72 +1868,110 @@ class ProfileTabState extends State<ProfileTab> {
                 final member = widget.members[index];
                 bool isAlreadyManager = member['is_manager'] ?? false;
                 return ListTile(
-                  title: Text(member['name'] ?? '', style: const TextStyle(color: Colors.white)),
-                  subtitle: Text(member['email'] ?? '', style: const TextStyle(color: Colors.white70)),
+                  title: Text(member['name'] ?? '',
+                      style: const TextStyle(color: Colors.white)),
+                  subtitle: Text(member['email'] ?? '',
+                      style: const TextStyle(color: Colors.white70)),
                   trailing: isAlreadyManager
-                      ? const Text('Manager', style: TextStyle(color: Colors.greenAccent))
+                      ? const Text('Manager',
+                          style: TextStyle(color: Colors.greenAccent))
                       : ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white),
                           onPressed: () async {
-                            List activeMembers = widget.members.where((m) => m['is_removed'] != true).toList();
-                            double totalBazaar = activeMembers.fold(0.0, (sum, m) => sum + (double.tryParse((m['bazaar'] ?? 0.0).toString()) ?? 0.0));
-                            
+                            List activeMembers = widget.members
+                                .where((m) => m['is_removed'] != true)
+                                .toList();
+                            double totalBazaar = activeMembers.fold(
+                                0.0,
+                                (sum, m) =>
+                                    sum +
+                                    (double.tryParse((m['bazaar'] ?? 0.0).toString()) ??
+                                        0.0));
+
                             int totalMeals = 0;
                             for (var m in activeMembers) {
                               Map daily = m['dailyMeals'] ?? {};
                               daily.forEach((k, v) {
-                                totalMeals += (int.tryParse((v['lunch'] ?? 0).toString()) ?? 0) + (int.tryParse((v['dinner'] ?? 0).toString()) ?? 0);
+                                if (v is Map) {
+                                  totalMeals +=
+                                      (int.tryParse((v['lunch'] ?? 0).toString()) ?? 0) +
+                                          (int.tryParse((v['dinner'] ?? 0).toString()) ??
+                                              0);
+                                }
                               });
                             }
-                            double mealRate = totalMeals > 0 ? totalBazaar / totalMeals : 0.0;
+                            double mealRate =
+                                totalMeals > 0 ? totalBazaar / totalMeals : 0.0;
 
                             List memberSummaries = [];
                             for (var m in activeMembers) {
                               int mMeals = 0;
                               Map daily = m['dailyMeals'] ?? {};
                               daily.forEach((k, v) {
-                                mMeals += (int.tryParse((v['lunch'] ?? 0).toString()) ?? 0) + (int.tryParse((v['dinner'] ?? 0).toString()) ?? 0);
+                                if (v is Map) {
+                                  mMeals +=
+                                      (int.tryParse((v['lunch'] ?? 0).toString()) ??
+                                              0) +
+                                          (int.tryParse((v['dinner'] ?? 0).toString()) ??
+                                              0);
+                                }
                               });
                               double mCost = mMeals * mealRate;
-                              double mBazaar = double.tryParse((m['bazaar'] ?? 0.0).toString()) ?? 0.0;
+                              double mBazaar =
+                                  double.tryParse((m['bazaar'] ?? 0.0).toString()) ??
+                                      0.0;
                               double balance = mBazaar - mCost;
 
                               memberSummaries.add({
                                 'name': m['name'],
                                 'email': m['email'],
+                                'whatsapp': m['whatsapp'],
                                 'meals': mMeals,
                                 'bazaar': mBazaar,
                                 'cost': mCost,
                                 'balance': balance,
+                                'dailyMeals': Map<String, dynamic>.from(daily),
+                                'bazaar_entries': List<Map<String, dynamic>>.from(
+                                    m['bazaar_entries'] ?? []),
                               });
                             }
 
-                            List updatedHistory = List.from(widget.historyList);
-                            updatedHistory.add({
+                            Map<String, dynamic> historyItem = {
                               'month': DateTime.now().toString().substring(0, 7),
+                              'closed_at': DateTime.now().toIso8601String(),
+                              'closed_by': globalUserEmail,
                               'total_meals': totalMeals,
                               'total_bazaar': totalBazaar,
                               'meal_rate': mealRate,
                               'member_summaries': memberSummaries,
-                            });
+                            };
+
+                            List updatedHistory = List.from(widget.historyList);
+                            updatedHistory.add(historyItem);
 
                             List updatedMembers = List.from(widget.members);
                             for (var min in updatedMembers) {
                               min['is_manager'] = false;
                               min['bazaar'] = 0.0;
+                              min['bazaar_entries'] = [];
                               min['dailyMeals'] = {};
                             }
                             updatedMembers[index]['is_manager'] = true;
 
-                            await FirebaseFirestore.instance.collection('messes').doc(globalMessDocId).update({
+                            await FirebaseFirestore.instance
+                                .collection('messes')
+                                .doc(globalMessDocId)
+                                .update({
                               'monthly_history': updatedHistory,
                               'members': updatedMembers,
                             });
 
                             isAdminLoggedIn = false;
-                            if (!context.mounted) return;
-                            Navigator.pop(context);
-                            _showPdfDownloadSuccessDialog();
+                            if (!dialogCtx.mounted) return;
+                            Navigator.pop(dialogCtx);
+                            _showPdfDownloadSuccessDialog(historyItem);
                           },
                           child: const Text('Make Manager'),
                         ),
@@ -1229,28 +1980,124 @@ class ProfileTabState extends State<ProfileTab> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Cancel')),
           ],
         );
       },
     );
   }
 
-  void _showPdfDownloadSuccessDialog() {
+  void _showPdfDownloadSuccessDialog(Map historyItem) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(0xFF1a1a2e),
-        title: const Text('Month Closed & PDF Result Saved', style: TextStyle(color: Colors.white)),
-        content: const Text('New manager assigned successfully. Please login again.', style: TextStyle(color: Colors.white70)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.greenAccent),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Month Closed & PDF Ready!',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'The month has been closed and accounts reset for the new manager. You can now download the official PDF statement with all day-by-day meals and bazaar history.',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber.shade700,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 45),
+              ),
+              icon: const Icon(Icons.picture_as_pdf),
+              label: const Text('Download Month-End PDF Report',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                final pdf = await MessPdfHelper.generateReport(
+                  messName: globalMessName,
+                  messCode: globalMessCode,
+                  month: historyItem['month'] ?? 'Month-End',
+                  managerName: historyItem['closed_by'] ?? 'Manager',
+                  totalBazaar:
+                      double.tryParse((historyItem['total_bazaar'] ?? 0).toString()) ??
+                          0.0,
+                  totalMeals:
+                      int.tryParse((historyItem['total_meals'] ?? 0).toString()) ?? 0,
+                  mealRate:
+                      double.tryParse((historyItem['meal_rate'] ?? 0).toString()) ??
+                          0.0,
+                  memberSummaries: historyItem['member_summaries'] ?? [],
+                );
+                if (!dialogCtx.mounted) return;
+                await MessPdfHelper.downloadPdf(
+                  document: pdf,
+                  filename: '${globalMessName}_Report_${historyItem['month']}.pdf',
+                  context: dialogCtx,
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.greenAccent),
+                minimumSize: const Size(double.infinity, 42),
+              ),
+              icon: const Icon(Icons.print, color: Colors.greenAccent),
+              label: const Text('Preview / Print PDF'),
+              onPressed: () async {
+                final pdf = await MessPdfHelper.generateReport(
+                  messName: globalMessName,
+                  messCode: globalMessCode,
+                  month: historyItem['month'] ?? 'Month-End',
+                  managerName: historyItem['closed_by'] ?? 'Manager',
+                  totalBazaar:
+                      double.tryParse((historyItem['total_bazaar'] ?? 0).toString()) ??
+                          0.0,
+                  totalMeals:
+                      int.tryParse((historyItem['total_meals'] ?? 0).toString()) ?? 0,
+                  mealRate:
+                      double.tryParse((historyItem['meal_rate'] ?? 0).toString()) ??
+                          0.0,
+                  memberSummaries: historyItem['member_summaries'] ?? [],
+                );
+                await MessPdfHelper.printOrPreview(
+                  document: pdf,
+                  filename: '${globalMessName}_Report_${historyItem['month']}.pdf',
+                );
+              },
+            ),
+          ],
+        ),
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               await prefs.clear();
-              if (!context.mounted) return;
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+              if (!dialogCtx.mounted) return;
+              Navigator.pop(dialogCtx);
+              Navigator.pushReplacement(
+                dialogCtx,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
             },
             child: const Text('OK / Login Again'),
           ),
@@ -1262,45 +2109,134 @@ class ProfileTabState extends State<ProfileTab> {
   void _showPreviousHistoryDialog() {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1a1a2e),
-          title: const Text('Monthly Result PDF / History', style: TextStyle(color: Colors.white)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Monthly Result PDF / History',
+              style: TextStyle(color: Colors.white)),
           content: SizedBox(
             width: double.maxFinite,
             child: widget.historyList.isEmpty
-                ? const Text('No history found.', style: TextStyle(color: Colors.white70))
+                ? const Text('No history found.',
+                    style: TextStyle(color: Colors.white70))
                 : ListView.builder(
                     shrinkWrap: true,
                     itemCount: widget.historyList.length,
                     itemBuilder: (context, index) {
                       var history = widget.historyList[index];
-                      double tBazaar = double.tryParse((history['total_bazaar'] ?? 0.0).toString()) ?? 0.0;
-                      int tMeals = int.tryParse((history['total_meals'] ?? 0).toString()) ?? 0;
+                      double tBazaar =
+                          double.tryParse((history['total_bazaar'] ?? 0.0).toString()) ??
+                              0.0;
+                      int tMeals =
+                          int.tryParse((history['total_meals'] ?? 0).toString()) ?? 0;
+                      double mRate =
+                          double.tryParse((history['meal_rate'] ?? 0.0).toString()) ??
+                              0.0;
                       List summaries = history['member_summaries'] ?? [];
+
                       return ExpansionTile(
-                        title: Text('Month: ${history['month']}', style: const TextStyle(color: Colors.amber)),
-                        subtitle: Text('Bazaar: ${tBazaar.toStringAsFixed(2)} Tk | Meals: $tMeals', style: const TextStyle(color: Colors.white70)),
-                        children: summaries.map((m) {
-                          double bal = double.tryParse((m['balance'] ?? 0.0).toString()) ?? 0.0;
-                          return ListTile(
-                            title: Text(m['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                            subtitle: Text('Meals: ${m['meals']} | Bazaar: ${m['bazaar']} Tk', style: const TextStyle(color: Colors.white60)),
-                            trailing: Text(
-                              '${bal >= 0 ? '+' : ''}${bal.toStringAsFixed(2)} Tk',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: bal >= 0 ? Colors.greenAccent : Colors.redAccent,
-                              ),
+                        title: Text('Month: ${history['month']}',
+                            style: const TextStyle(
+                                color: Colors.amber, fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                            'Bazaar: ${tBazaar.toStringAsFixed(2)} Tk | Meals: $tMeals | Rate: ${mRate.toStringAsFixed(2)} Tk',
+                            style: const TextStyle(color: Colors.white70)),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.amber.shade700,
+                                        foregroundColor: Colors.white),
+                                    icon: const Icon(Icons.picture_as_pdf, size: 18),
+                                    label: const Text('Download PDF'),
+                                    onPressed: () async {
+                                      final pdf = await MessPdfHelper.generateReport(
+                                        messName: globalMessName,
+                                        messCode: globalMessCode,
+                                        month: history['month'] ?? 'Archive',
+                                        managerName:
+                                            history['closed_by'] ?? 'Manager',
+                                        totalBazaar: tBazaar,
+                                        totalMeals: tMeals,
+                                        mealRate: mRate,
+                                        memberSummaries: summaries,
+                                      );
+                                      if (!dialogCtx.mounted) return;
+                                      await MessPdfHelper.downloadPdf(
+                                        document: pdf,
+                                        filename:
+                                            '${globalMessName}_Report_${history['month']}.pdf',
+                                        context: dialogCtx,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(color: Colors.white30)),
+                                  icon: const Icon(Icons.print, size: 18),
+                                  label: const Text('Print'),
+                                  onPressed: () async {
+                                    final pdf = await MessPdfHelper.generateReport(
+                                      messName: globalMessName,
+                                      messCode: globalMessCode,
+                                      month: history['month'] ?? 'Archive',
+                                      managerName:
+                                          history['closed_by'] ?? 'Manager',
+                                      totalBazaar: tBazaar,
+                                      totalMeals: tMeals,
+                                      mealRate: mRate,
+                                      memberSummaries: summaries,
+                                    );
+                                    await MessPdfHelper.printOrPreview(
+                                      document: pdf,
+                                      filename:
+                                          '${globalMessName}_Report_${history['month']}.pdf',
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
-                          );
-                        }).toList(),
+                          ),
+                          ...summaries.map((m) {
+                            double bal =
+                                double.tryParse((m['balance'] ?? 0.0).toString()) ?? 0.0;
+                            return ListTile(
+                              title: Text(m['name'] ?? '',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white)),
+                              subtitle: Text(
+                                  'Meals: ${m['meals']} | Bazaar: ${m['bazaar']} Tk',
+                                  style: const TextStyle(color: Colors.white60)),
+                              trailing: Text(
+                                '${bal >= 0 ? '+' : ''}${bal.toStringAsFixed(2)} Tk',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: bal >= 0
+                                      ? Colors.greenAccent
+                                      : Colors.redAccent,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ],
                       );
                     },
                   ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Close')),
           ],
         );
       },
@@ -1311,13 +2247,17 @@ class ProfileTabState extends State<ProfileTab> {
   Widget build(BuildContext context) {
     Map currentUser = {};
     for (var m in widget.members) {
-      if ((m['email'] ?? "").toString().toLowerCase() == globalUserEmail.toLowerCase()) {
+      if ((m['email'] ?? "").toString().toLowerCase() ==
+          globalUserEmail.toLowerCase()) {
         currentUser = m;
       }
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile'), backgroundColor: Colors.green.shade800, foregroundColor: Colors.white),
+      appBar: AppBar(
+          title: const Text('Profile'),
+          backgroundColor: Colors.green.shade800,
+          foregroundColor: Colors.white),
       body: Container(
         decoration: dynamic3DBackground(),
         child: SafeArea(
@@ -1338,20 +2278,50 @@ class ProfileTabState extends State<ProfileTab> {
                           child: Icon(Icons.person, size: 50, color: Colors.white),
                         ),
                         const SizedBox(height: 12),
-                        Text(currentUser['name'] ?? 'User Name', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber)),
+                        Text(currentUser['name'] ?? 'User Name',
+                            style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber)),
                         const SizedBox(height: 4),
-                        Text('Email: ${currentUser['email'] ?? globalUserEmail}', style: const TextStyle(fontSize: 14, color: Colors.white70)),
+                        Text(
+                            'Email: ${currentUser['email'] ?? globalUserEmail}',
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.white70)),
                         const SizedBox(height: 4),
-                        Text('Mobile/WhatsApp: ${currentUser['whatsapp'] ?? 'N/A'}', style: const TextStyle(fontSize: 14, color: Colors.white70)),
+                        Text(
+                            'Mobile/WhatsApp: ${currentUser['whatsapp'] ?? 'N/A'}',
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.white70)),
                         const SizedBox(height: 4),
-                        Text('Mess Name: $globalMessName', style: const TextStyle(fontSize: 14, color: Colors.white70)),
+                        Text('Mess Name: $globalMessName',
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.white70)),
                         const SizedBox(height: 4),
-                        Text('Mess Code: $globalMessCode', style: const TextStyle(fontSize: 14, color: Colors.white70)),
+                        Text('Mess Code: $globalMessCode',
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.white70)),
                         const SizedBox(height: 4),
-                        Text('Role: ${isAdminLoggedIn ? "Manager" : "Member"}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+                        Text(
+                            'Role: ${isAdminLoggedIn ? "Manager" : "Member"}',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.greenAccent)),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber.shade700,
+                              foregroundColor: Colors.white),
+                          onPressed: () => _downloadCurrentMonthReport(context),
+                          icon: const Icon(Icons.picture_as_pdf),
+                          label: const Text('Download Current Month PDF'),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueAccent,
+                              foregroundColor: Colors.white),
                           onPressed: _showPreviousHistoryDialog,
                           icon: const Icon(Icons.history),
                           label: const Text('Monthly Result PDF / History'),
@@ -1359,19 +2329,26 @@ class ProfileTabState extends State<ProfileTab> {
                         const SizedBox(height: 8),
                         if (isAdminLoggedIn)
                           ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white),
                             onPressed: _showChangeManagerDialog,
                             icon: const Icon(Icons.swap_horiz),
-                            label: const Text('Change Manager'),
+                            label: const Text('Change Manager & Close Month'),
                           ),
                         const SizedBox(height: 8),
                         ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              foregroundColor: Colors.white),
                           onPressed: () async {
                             final prefs = await SharedPreferences.getInstance();
                             await prefs.clear();
                             if (!context.mounted) return;
-                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+                            Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => const LoginScreen()));
                           },
                           icon: const Icon(Icons.logout),
                           label: const Text('Logout'),
